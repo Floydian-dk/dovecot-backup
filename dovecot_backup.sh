@@ -7,8 +7,8 @@
 #               On error while execution, a LOG file and a error message     #
 #               will be send by e-mail.                                      #
 #                                                                            #
-# Last update : 11.09.2021                                                   #
-# Version     : 1.17.1                                                       #
+# Last update : 12.09.2021                                                   #
+# Version     : 1.17.2                                                       #
 #                                                                            #
 # Author      : Klaus Tachtler, <klaus@tachtler.net>                         #
 # DokuWiki    : http://www.dokuwiki.tachtler.net                             #
@@ -140,6 +140,10 @@
 # Description : Adapting to run under MacOs                                  #
 #               Replacing tar with gtar (available via Homebrew)             #
 # -------------------------------------------------------------------------- #
+# Version     : 1.17.2                                                       #
+# Description : Adding option to use GPG to encrypt backup files.            #
+#               GNGPG is installed using Homebrew on macOS                   #
+# -------------------------------------------------------------------------- #
 # Version     : x.xx                                                         #
 # Description : <Description>                                                #
 # -------------------------------------------------------------------------- #
@@ -182,6 +186,12 @@ MAIL_RECIPIENT='user@domain.tld'
 # CUSTOM - Status-Mail [Y|N].
 MAIL_STATUS='N'
 
+# CUSTOM - GPG encode
+GPG_ENABLED='N'
+GPG_RECIPIENT='name@example.com'
+DIR_GPG='/tmp/srv/backup'
+
+
 ##############################################################################
 # >>> Normaly there is no need to change anything below this comment line. ! #
 ##############################################################################
@@ -203,6 +213,7 @@ MKTEMP_COMMAND=`command -v mktemp`
 GREP_COMMAND=`command -v grep`
 MV_COMMAND=`command which mv`
 STAT_COMMAND=`command -v stat`
+GPG_COMMAND=`command -v gpg`
 FILE_LOCK='/tmp/'$SCRIPT_NAME'.lock'
 FILE_LOG='/var/log/'$SCRIPT_NAME'.log'
 FILE_LAST_LOG='/tmp/'$SCRIPT_NAME'.log'
@@ -364,14 +375,15 @@ checkcommand $MKTEMP_COMMAND
 checkcommand $MV_COMMAND
 checkcommand $STAT_COMMAND
 checkcommand $PROG_SENDMAIL
+checkcommand $GPG_COMMAND
 
 # Check if LOCK file NOT exist.
 if [ ! -e "$FILE_LOCK" ]; then
-        logline "Check if the script is NOT already runnig " true
+        logline "Check if the script is NOT already running " true
 
         $TOUCH_COMMAND $FILE_LOCK
 else
-        logline "Check if the script is NOT already runnig " false
+        logline "Check if the script is NOT already running " false
         log ""
         log "ERROR: The script was already running, or LOCK file already exists!"
         log ""
@@ -597,6 +609,15 @@ for users in "${VAR_LISTED_USER[@]}"; do
         		logline "Move archive file for user to: $DIR_BACKUP " true
 		fi
 
+    if [ $GPG_ENABLED = 'Y' ]; then
+      $GPG_COMMAND --output "$DIR_GPG/$users-$FILE_BACKUP.gpg" --encrypt --recipient $GPG_RECIPIENT "$DIR_BACKUP/$users-$FILE_BACKUP"
+      if [ "$?" != "0" ]; then
+        logline "GPG encrypted archive file for $users done: " false
+      else
+        logline "GPG encrypted archive file for $users done: " true
+      fi
+    fi
+
 		cd $DIR_BACKUP
 
 		log "Delete archive files for user: $users ..."
@@ -606,6 +627,8 @@ for users in "${VAR_LISTED_USER[@]}"; do
 		else
         		logline "Delete old archive files from: $DIR_BACKUP " true
 		fi
+
+    cd $DIR_GPG
 	fi
 
 	log "Ended backup process for user: $users ..."
