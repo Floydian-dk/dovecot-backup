@@ -188,6 +188,8 @@ MAIL_STATUS='N'
 
 # Variables.
 DSYNC_COMMAND=`command -v dsync`
+# Using 'gnu-tar' installed via Homebrew for compatibility
+# Change to 'tar' to use build in tar.
 TAR_COMMAND=`command -v gtar`
 TOUCH_COMMAND=`command -v touch`
 RM_COMMAND=`command -v rm`
@@ -525,7 +527,7 @@ headerblock "Run backup $SCRIPT_NAME "
 log ""
 
 # Make temporary directory DIR_TEMP inside TMP_FOLDER.
-DIR_TEMP=$($MKTEMP_COMMAND -d "${TMPDIR:-/tmp/srv/backup}/$SCRIPT_NAME-XXXXXXXXXXXX")
+DIR_TEMP=$($MKTEMP_COMMAND -d "${TMPDIR:-$TMP_FOLDER}/$SCRIPT_NAME-XXXXXXXXXXXX")
 if [ "$?" != "0" ]; then
 	logline "Create temporary '$DIR_TEMP' folder " false
 	error 40
