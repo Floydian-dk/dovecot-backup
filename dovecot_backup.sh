@@ -7,8 +7,8 @@
 #               On error while execution, a LOG file and a error message     #
 #               will be send by e-mail.                                      #
 #                                                                            #
-# Last update : 26.04.2021                                                   #
-# Version     : 1.17                                                         #
+# Last update : 11.09.2021                                                   #
+# Version     : 1.17.1                                                       #
 #                                                                            #
 # Author      : Klaus Tachtler, <klaus@tachtler.net>                         #
 # DokuWiki    : http://www.dokuwiki.tachtler.net                             #
@@ -75,7 +75,7 @@
 # -------------------------------------------------------------------------- #
 # Version     : 1.08                                                         #
 # Description : GitHub Issue #9                                              #
-#               Add ability to only backup specific mailboxes, by using the  # 
+#               Add ability to only backup specific mailboxes, by using the  #
 #               variable FILE_USERLIST with the file path and file name as   #
 #               content. The file must contain one e-mail address per line.  #
 #               Add the calculation of the script runtime.                   #
@@ -136,6 +136,10 @@
 #               requested.                                                   #
 #               Thanks to selbitschka.                                       #
 # -------------------------------------------------------------------------- #
+# Version     : 1.17.1                                                       #
+# Description : Adapting to run under MacOs                                  #
+#               Replacing tar with gtar (available via Homebrew)             #
+# -------------------------------------------------------------------------- #
 # Version     : x.xx                                                         #
 # Description : <Description>                                                #
 # -------------------------------------------------------------------------- #
@@ -149,8 +153,8 @@
 SCRIPT_NAME='dovecot_backup'
 
 # CUSTOM - Backup-Files.
-TMP_FOLDER='/srv/backup'
-DIR_BACKUP='/srv/backup'
+TMP_FOLDER='/tmp/srv/backup'
+DIR_BACKUP='/tmp/srv/backup'
 FILE_BACKUP=dovecot_backup_`date '+%Y%m%d_%H%M%S'`.tar.gz
 FILE_DELETE='*.tar.gz'
 BACKUPFILES_DELETE=14
@@ -173,7 +177,7 @@ FILE_USERLIST=''
 FILE_USERLIST_VALIDATE_EMAIL='N'
 
 # CUSTOM - Mail-Recipient.
-MAIL_RECIPIENT='root@tachtler.net'
+MAIL_RECIPIENT='user@domain.tld'
 
 # CUSTOM - Status-Mail [Y|N].
 MAIL_STATUS='N'
@@ -184,7 +188,7 @@ MAIL_STATUS='N'
 
 # Variables.
 DSYNC_COMMAND=`command -v dsync`
-TAR_COMMAND=`command -v tar`
+TAR_COMMAND=`command -v gtar`
 TOUCH_COMMAND=`command -v touch`
 RM_COMMAND=`command -v rm`
 PROG_SENDMAIL=`command -v sendmail`
@@ -228,7 +232,7 @@ fi
 
 function movelog() {
 	$CAT_COMMAND $FILE_LAST_LOG >> $FILE_LOG
-	$RM_COMMAND -f $FILE_LAST_LOG	
+	$RM_COMMAND -f $FILE_LAST_LOG
 	$RM_COMMAND -f $FILE_LOCK
 }
 
@@ -387,7 +391,7 @@ else
 fi
 
 # Check if TMP_FOLDER is owned by $MAILDIR_USER.
-if [ "$MAILDIR_USER" != `$STAT_COMMAND -c '%U' $TMP_FOLDER` ]; then
+if [ "$MAILDIR_USER" != `$STAT_COMMAND -f '%Su' $TMP_FOLDER` ]; then
         logline "Check if TMP_FOLDER owner is $MAILDIR_USER " false
 	$CHOWN_COMMAND -R $MAILDIR_USER:$MAILDIR_GROUP $TMP_FOLDER
 	if [ "$?" != "0" ]; then
@@ -401,7 +405,7 @@ else
 fi
 
 # Check if TMP_FOLDER group is $MAILDIR_GROUP.
-if [ "$MAILDIR_GROUP" != `$STAT_COMMAND -c '%G' $TMP_FOLDER` ]; then
+if [ "$MAILDIR_GROUP" != `$STAT_COMMAND -f '%Sg' $TMP_FOLDER` ]; then
         logline "Check if TMP_FOLDER group is $MAILDIR_GROUP " false
 	$CHOWN_COMMAND -R $MAILDIR_USER:$MAILDIR_GROUP $TMP_FOLDER
 	if [ "$?" != "0" ]; then
@@ -429,7 +433,7 @@ else
 fi
 
 # Check if DIR_BACKUP is owned by $MAILDIR_USER.
-if [ "$MAILDIR_USER" != `$STAT_COMMAND -c '%U' $DIR_BACKUP` ]; then
+if [ "$MAILDIR_USER" != `$STAT_COMMAND -f '%Su' $DIR_BACKUP` ]; then
         logline "Check if DIR_BACKUP owner is $MAILDIR_USER " false
 	$CHOWN_COMMAND -R $MAILDIR_USER:$MAILDIR_GROUP $DIR_BACKUP
 	if [ "$?" != "0" ]; then
@@ -443,7 +447,7 @@ else
 fi
 
 # Check if DIR_BACKUP group is $MAILDIR_GROUP.
-if [ "$MAILDIR_GROUP" != `$STAT_COMMAND -c '%G' $DIR_BACKUP` ]; then
+if [ "$MAILDIR_GROUP" != `$STAT_COMMAND -f '%Sg' $DIR_BACKUP` ]; then
         logline "Check if DIR_BACKUP group is $MAILDIR_GROUP " false
 	$CHOWN_COMMAND -R $MAILDIR_USER:$MAILDIR_GROUP $DIR_BACKUP
 	if [ "$?" != "0" ]; then
@@ -491,7 +495,7 @@ else
 
 	# Read file into variable.
 	while IFS= read -r line
-	do	
+	do
 		# Check for valid e-mail address.
 		if [ $FILE_USERLIST_VALIDATE_EMAIL = 'Y' ]; then
 			# Check if basic email address syntax is valid.
@@ -521,7 +525,7 @@ headerblock "Run backup $SCRIPT_NAME "
 log ""
 
 # Make temporary directory DIR_TEMP inside TMP_FOLDER.
-DIR_TEMP=$($MKTEMP_COMMAND -d -p $TMP_FOLDER -t $SCRIPT_NAME-XXXXXXXXXXXX)
+DIR_TEMP=$($MKTEMP_COMMAND -d "${TMPDIR:-/tmp/srv/backup}/$SCRIPT_NAME-XXXXXXXXXXXX")
 if [ "$?" != "0" ]; then
 	logline "Create temporary '$DIR_TEMP' folder " false
 	error 40
@@ -573,10 +577,10 @@ for users in "${VAR_LISTED_USER[@]}"; do
 		cd $DIR_TEMP
 
 		log "Packaging to archive for user: $users ..."
-		$TAR_COMMAND -cvzf $users-$FILE_BACKUP $USERPART --atime-preserve --preserve-permissions
+		$TAR_COMMAND -czf $users-$FILE_BACKUP $USERPART --atime-preserve --preserve-permissions
 
 		log "Delete mailbox files for user: $users ..."
-		$RM_COMMAND "$DIR_TEMP/$DOMAINPART" -rf
+		$RM_COMMAND -rf "$DIR_TEMP/$DOMAINPART"
 		if [ "$?" != "0" ]; then
         		logline "Delete mailbox files at: $DIR_TEMP " false
 		else
@@ -594,7 +598,7 @@ for users in "${VAR_LISTED_USER[@]}"; do
 		cd $DIR_BACKUP
 
 		log "Delete archive files for user: $users ..."
-		(ls -t $users-$FILE_DELETE|head -n $BACKUPFILES_DELETE;ls $users-$FILE_DELETE)|sort|uniq -u|xargs -r rm
+		(ls -t $users-$FILE_DELETE|head -n $BACKUPFILES_DELETE;ls $users-$FILE_DELETE)|sort|uniq -u|tr '\n' '\0'|xargs -0 rm --
 		if [ "$?" != "0" ]; then
         		logline "Delete old archive files from: $DIR_BACKUP " false
 		else
@@ -607,7 +611,7 @@ for users in "${VAR_LISTED_USER[@]}"; do
 done
 
 # Delete the temporary folder DIR_TEMP.
-$RM_COMMAND $DIR_TEMP -rf
+$RM_COMMAND -rf $DIR_TEMP
 if [ "$?" != "0" ]; then
 	logline "Delete temporary '$DIR_TEMP' folder " false
 	error 42
@@ -671,7 +675,7 @@ fi
 
 log ""
 END_TIMESTAMP=`$DATE_COMMAND '+%s'`
-log "Runtime: `$DATE_COMMAND -u -d "0 $END_TIMESTAMP seconds - $RUN_TIMESTAMP seconds" +'%H:%M:%S'` time elapsed."
+log "Runtime: `$DATE_COMMAND -u -r $(($END_TIMESTAMP - $RUN_TIMESTAMP)) +'%H:%M:%S'` time elapsed."
 log ""
 headerblock "Finished creating the backups [`$DATE_COMMAND '+%a, %d %b %Y %H:%M:%S (%z)'`]"
 log ""
