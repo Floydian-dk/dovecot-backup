@@ -664,7 +664,7 @@ else
 fi
 
 # Set rights permissions to backup files.
-$CHMOD_COMMAND -R 600 $DIR_BACKUP/*
+$CHMOD_COMMAND -R 600 $DIR_BACKUP/
 if [ "$?" != "0" ]; then
        	logline "Set file permissions in DIR_BACKUP to -rw------- " false
 	error 45
